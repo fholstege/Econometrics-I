@@ -171,3 +171,27 @@ stargazer(lm(f, data = fake_data),
 est.Beta.GMM <- inv(t(mX_model1) %*%mX_model1) %*% t(mX_model1) %*% mY
 est.Beta.GMM
 
+
+# specificy moment conditions
+
+mXY <- cbind(mX_model1,mY)
+
+g <- function(a, mXY){
+  # each x is orthogonal to residual
+  m1 <- mXY[,1]*(mXY[,5]-a[1]*mXY[,1]-a[2]*mXY[,2]-a[3]*mXY[,3]-a[4]*mXY[,4])
+  m2 <- mXY[,2]*(mXY[,5]-a[1]*mXY[,1]-a[2]*mXY[,2]-a[3]*mXY[,3]-a[4]*mXY[,4])
+  m3 <- mXY[,3]*(mXY[,5]-a[1]*mXY[,1]-a[2]*mXY[,2]-a[3]*mXY[,3]-a[4]*mXY[,4])
+  m4 <- mXY[,4]*(mXY[,5]-a[1]*mXY[,1]-a[2]*mXY[,2]-a[3]*mXY[,3]-a[4]*mXY[,4])
+  
+  f  <- cbind(m1,m2,m3,m4)
+  return(f)
+}
+
+# estimate via gmm package
+library(gmm)
+GMM <- gmm(g, mXY, c(1,1,1,1),type="iterative", wmatrix = "optimal")
+
+# gmm coefs
+GMM$coefficients
+
+
