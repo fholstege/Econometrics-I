@@ -14,30 +14,45 @@ summary(df)
 
 # define first model, according to question 4.a.1
 model_1 <- lm(birthweight ~ age + unmarried + educ ,data = df)
+
+# get summary of coefficients and standard errors, create latex table
 summary(model_1)
+stargazer(model_1)
 
 # define the second model, according to question 4.a.2
 model_2 <- lm(birthweight ~ age + unmarried + educ + alcohol + smoker + drinks ,data = df)
+
+# get summary of coefficients and standard errors, create latex table
 summary(model_2)
 
 ### Question 4.b
 
-# looking at the summary of model_2, the alcohol and drinks variables are statistically insignificant (e.g. cannot reject H:0)
-# but the smoker variable is statistically significant.
+# define F-test
+Ftest <- function(k, g, n, RSS_test, RSS_compare){
+  
+  Ftest = ((RSS_compare - RSS_test)/g)/(RSS_test/(n-k))
+  Pval <- 1-pf(Ftest, g, n-k)
+  return(Pval)
+}
 
-# get table of the coefficients and their significance, showing t-values
-stargazer(model_2, report=('vc*t'))
+# residual sum of squares for both model 1 and 2
+RSS_1 <- t(resid(model_1)) %*% resid(model_1)
+RSS_2 <-  t(resid(model_2)) %*% resid(model_2)
 
-#Answer: can reject the null hypothesis that they are all equal and zero
+# get result of F-test for comparing model 1 and 2
+Ftest_model1_2 <- Ftest(3,3,nrow(df), RSS_2, RSS_1)
+Ftest_model1_2
+
+
 
 ### Question 4.C
 
-# test for non-linearity in model_2 - ^2 and ^3
+# Create non-linear transformations of the Yhat in model 2
 yest <- model_2$fitted.values
 yest2 <- as.matrix(yest^2)
 yest3 <- as.matrix(yest^3)
 
-# add these fitted values squared, to the power three, to the original model
+# add these non-linear tranformations to the original model
 test_linear <- lm(birthweight ~ age + unmarried + educ + alcohol + smoker + drinks + yest2 + yest3, data = df)
 summary(test_linear)
 
@@ -45,50 +60,43 @@ summary(test_linear)
 RSS_REST <- t(resid(test_linear))%*%resid(test_linear)
 RSS_Orig <- t(resid(model_2)) %*% resid(model_2)
 
-# define F-test
-Ftest <- function(k, g, n, RSS_test, RSS_compare){
-  
-  Ftest = ((RSS_compare - RSS_test)/g)/(RSS_test/(n-k))
-
-  Pval <- 1-pf(Ftest, g, n-k)
-  return(Pval)
-}
 
 # calc p-val for the F-test - likely to have non-linear dynamics
-pval_linear <- Ftest(k=6, g = 2, n = nrow(df), RSS_REST, RSS_Orig)
-pval_linear
+Ftest_linear <- Ftest(k=6, g = 2, n = nrow(df), RSS_REST, RSS_Orig)
+Ftest_linear
 
-#Answer: p-value is 9%, e.g. a 9% chance that there are non-linear dynamics that are not captured. Cannot reject H0 at 5% significance
+anova(model_1, model_2)
 
-### Question 4.D + E
 
-# test for non-linear dynamics now the dependent variable is logged
+### Question 4.D
+
+# Test for non-linear dynamics now the dependent variable is logged
 model_2_Log <- lm(log(birthweight) ~ age + unmarried + educ + alcohol + smoker + drinks ,data = df)
 summary(model_2_Log)
 
+yest_log <- model_2_Log$fitted.values
+yest2_log <- as.matrix(yest_log^2)
+yest3_log <- as.matrix(yest_log^3)
+
 # create model with fitted values, squared and to the power three, logged
-test_linear_logged <-  lm(log(birthweight) ~ age + unmarried + educ + alcohol + smoker + drinks + yest2 + yest3, data = df)
+test_linear_logged <-  lm(log(birthweight) ~ age + unmarried + educ + alcohol + smoker + drinks + yest2_log + yest3_log, data = df)
 summary(test_linear_logged)
 
 # get residuals and perform F-test
 RSS_REST_Log <-  t(resid(test_linear_logged))%*%resid(test_linear_logged)
 RSS_Orig_Log <- t(resid(model_2_Log)) %*% resid(model_2_Log)
 
-pval_linear_logged <- Ftest(k=6, g=2, n=nrow(df), RSS_REST_Log, RSS_Orig_Log)
-pval_linear_logged
+Ftest_linear_logged <- Ftest(k=6, g=2, n=nrow(df), RSS_REST_Log, RSS_Orig_Log)
+Ftest_linear_logged_2 <- ((RSS_Orig_Log-RSS_REST_Log)/2)/(RSS_REST_Log/(3000-6))
 
-#Answer: 
-# - The model gets an adjusted R-squared of 4.8%. This is worse than the model with the dependent variable unlogged (5.5%)
-# - The same variables remain statistically significant
-# - the F-test has a higher p-value, showing that logging the dependent variable makes it more likely to be linear
-# - Question: how to interpret AIC? weird that its lower for logged model, despite having lower adjusted R-Squared
 
-### compare linear y and log y model
+Ftest_linear_logged
+
+### Question 4.E
+
+### compare linear y and log y model in terms of R2, Adjusted R2
 summary(model_2)
 summary(model_2_Log)
-AIC(model_2)
-AIC(model_2_Log)
-
 
 ### Question 5: compute ML 
 
@@ -101,9 +109,8 @@ LL <- function(mB, mY, mX, sigma2){
   n      <- nrow(mX)
   e <- mY - (mX %*% mB)
   
-  logL <- .5*n*log(2*pi)-.5*n*log(sigma2)-((t(e)%*%e)/(2*sigma2))
-  return(-logL)
 
+    return(-logL)
 }
 
 # log-likelihood funtion to additionally estimate sigma2
@@ -137,10 +144,13 @@ t_1 <- ML_1$par/se_1
 
 # manually calculate sigma2
 sigma2_ML1<- t(mY-mX_model1%*%ML_1$par)%*%(mY-mX_model1%*%ML_1$par)/nrow(mX_model1)
+sigma2_ML1
+
 
 # additinally estimate sigma2
 ML_2 <- optim(c(1,1,1,1,1),LL2,method="BFGS",hessian=T,mY=mY,mX=mX_model1)
 ML_2$par
+
 
 # calculate associated standard errors from fisher information
 observed_FI <- solve(ML_2$hessian)
@@ -148,6 +158,9 @@ se_2 <- sqrt(diag(observed_FI))
 
 # calculate t-test statistics
 t_1 <- ML_2$par/se_2
+
+
+
 
 # construct fake lm object to input into stargazer
 dep_var <- "birthweight"
@@ -168,6 +181,7 @@ stargazer(lm(f, data = fake_data),
           align = TRUE,
           digits = 3,
           title = "Results of the Maximum Likelihood Estimation")
+
 
 
 # Question 6: GMM estimate
@@ -199,5 +213,5 @@ GMM$coefficients
 
 # manually calculate sigma2
 sigma2_GMM<- t(mY-mX_model1%*%GMM$coefficients)%*%(mY-mX_model1%*%GMM$coefficients)/nrow(mX_model1)
-
+sigma2_GMM
 
