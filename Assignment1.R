@@ -197,5 +197,7 @@ GMM <- gmm(g, mXY, c(1,1,1,1),type="iterative", wmatrix = "optimal")
 # gmm coefs
 GMM$coefficients
 
+# manually calculate sigma2
+sigma2_GMM<- t(mY-mX_model1%*%GMM$coefficients)%*%(mY-mX_model1%*%GMM$coefficients)/nrow(mX_model1)
 
 
