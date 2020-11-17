@@ -143,8 +143,11 @@ g <- function(a, mXY){
   return(f)
 }
 
-# estimate via gmm package
-GMM <- gmm(g, mXY, c(0,0,0,0),type="iterative", wmatrix = "optimal")
+
+
+
+# estimate via gmm package, using the weights from OLS as the initial coefficients 
+GMM <- gmm(g, mXY, ML_1$par,type="iterative", wmatrix = "optimal")
 
 # get gmm coeficients
 GMM$coefficients
