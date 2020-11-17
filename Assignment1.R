@@ -109,8 +109,9 @@ LL <- function(mB, mY, mX, sigma2){
 # log-likelihood funtion to additionally estimate sigma2
 LL2 <- function(par, mY, mX){
   n <- nrow(mX)
-  mB <- par[1:4]
-  sigma2 <- par[5]
+  k <- ncol(mX)
+  mB <- par[1:k]
+  sigma2 <- par[k+1]
   e <- mY - (mX %*% mB)
   
   logL <- .5*n*log(2*pi)-.5*n*log(sigma2)-((t(e)%*%e)/(2*sigma2))
