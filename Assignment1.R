@@ -135,6 +135,9 @@ se_1 <- sqrt(diag(observed_FI))
 # calculate t-test statistics
 t_1 <- ML_1$par/se_1
 
+# manually calculate sigma2
+sigma2_ML1<- t(mY-mX_model1%*%ML_1$par)%*%(mY-mX_model1%*%ML_1$par)/nrow(mX_model1)
+
 # additinally estimate sigma2
 ML_2 <- optim(c(1,1,1,1,1),LL2,method="BFGS",hessian=T,mY=mY,mX=mX_model1)
 ML_2$par
@@ -172,7 +175,7 @@ est.Beta.GMM <- inv(t(mX_model1) %*%mX_model1) %*% t(mX_model1) %*% mY
 est.Beta.GMM
 
 
-# specificy moment conditions
+# specify moment conditions
 
 mXY <- cbind(mX_model1,mY)
 
@@ -193,5 +196,6 @@ GMM <- gmm(g, mXY, c(1,1,1,1),type="iterative", wmatrix = "optimal")
 
 # gmm coefs
 GMM$coefficients
+
 
 
