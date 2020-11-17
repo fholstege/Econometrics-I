@@ -106,6 +106,17 @@ LL <- function(mB, mY, mX, sigma2){
 
 }
 
+# log-likelihood funtion to additionally estimate sigma2
+LL2 <- function(par, mY, mX){
+  n <- nrow(mX)
+  mB <- par[1:4]
+  sigma2 <- par[5]
+  e <- mY - (mX %*% mB)
+  
+  logL <- .5*n*log(2*pi)-.5*n*log(sigma2)-((t(e)%*%e)/(2*sigma2))
+  return(-logL)
+}
+
 # set initial beta's
 Beta <- c(1,1,1,1)
 mBeta <- as.matrix(Beta)
@@ -115,6 +126,45 @@ ML_1 <- optim(mBeta,LL,method="BFGS",hessian=T,mY=mY,mX=mX_model1, sigma2 = 1)
 
 # has the same beta's as the lm() 
 ML_1$par
+
+# calculate associated standard errors from fisher information
+observed_FI <- solve(ML_1$hessian)
+se_1 <- sqrt(diag(observed_FI))
+
+# calculate t-test statistics
+t_1 <- ML_1$par/se_1
+
+# additinally estimate sigma2
+ML_2 <- optim(c(1,1,1,1,1),LL2,method="BFGS",hessian=T,mY=mY,mX=mX_model1)
+ML_2$par
+
+# calculate associated standard errors from fisher information
+observed_FI <- solve(ML_2$hessian)
+se_2 <- sqrt(diag(observed_FI))
+
+# calculate t-test statistics
+t_1 <- ML_2$par/se_2
+
+# construct fake lm object to input into stargazer
+dep_var <- "birthweight"
+indep_vars <- c("Intercept", "age", "unmarried", "educ", "sigma2")
+f <- as.formula(paste(dep_var, " ~ 0 + ", paste(indep_vars, collapse = " + ")))
+
+# construct stargazer table based on calculated statistics
+fake_data <- as.data.frame(cbind(1, 1, df))
+names(fake_data)[1] <- "Intercept"
+names(fake_data)[2] <- "sigma2"
+stargazer(lm(f, data = fake_data),
+          type = "latex",
+          coef = list(ML_2$par), # supply self-estimated coefficients
+          se = list(se_2), # supply self-estimated standard errors
+          t.auto = TRUE, # calculate t values based on supplied coef and se
+          p.auto = TRUE, # calculate p value based on supplied coef and se
+          omit.stat = "all",
+          align = TRUE,
+          digits = 3,
+          title = "Results of the Maximum Likelihood Estimation")
+
 
 # Question 6: GMM estimate
 est.Beta.GMM <- inv(t(mX_model1) %*%mX_model1) %*% t(mX_model1) %*% mY
