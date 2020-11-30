@@ -365,28 +365,29 @@ dfFamily <- read.csv("Data/DataAS21.csv")
 # Independent = family size, dependent = family income
 lm_Famincome_size <- lm(familyincome ~ familysize,data = dfFamily)
 summary(lm_Famincome_size) 
-stargazer(lm_Famincome_size)
+
 # Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -3179 in family income
 
 # Independent = family size, dependent = weeks worked
 lm_worked_size <- lm(weeksworked ~ familysize, data = dfFamily)
 summary(lm_worked_size)
-stargazer(lm_worked_size)
+
 # Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -4 weeks worked less in the year for the mother
 
 # Independent = family size, dependent = hours per week
 lm_hours_size <- lm(hoursperweek ~ familysize,data = dfFamily)
 summary(lm_hours_size)
-stargazer(lm_hours_size)
+
 # Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -2 hours worked less per week
 
 # Independent = family size, dependent = labor income of the mother
 lm_Labincome_size <- lm( laborincome ~ familysize,data = dfFamily)
 summary(lm_Labincome_size)
-stargazer(lm_Labincome_size)
+
 # Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -2889 in the labor income of the mother
 
-
+# output table for latex document
+stargazer(lm_Famincome_size, lm_worked_size, lm_hours_size, lm_Labincome_size)
 
 
 ###################
