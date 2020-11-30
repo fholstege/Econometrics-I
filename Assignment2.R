@@ -69,8 +69,10 @@ for(i in 1:100){
   y = a + (b1 * mX1) + (b2 * mX2)
   
   # create errors
-  sigma2 = 0.25
-  errors = rnorm(100,0,sd = sigma2)
+  # talked to walter - I think we need to use sigma2_i here, otherwise no heteroskadisticity 
+  #sigma2 = 0.25
+  sigma2_i = sigma2 * exp((c1* vZ^2)+ (c2 * vZ))
+  errors = rnorm(100,0,sd = sigma2_i)
   
   # add errors to y
   y <- y + errors
@@ -114,7 +116,7 @@ sigma2_i_WLS = sigma2 * exp((c1 * vZ^2) +(c2 * vZ))
 lmSimulated_WLS <- lm(y ~ X1+ X2, data = dfSimulated_data, weights=sigma2_i_WLS)
 
 
-## For the WLS, we use the residuals of the OLS to estimate s2, c1, and c2. 
+## For the FWLS, we use the residuals of the OLS to estimate s2, c1, and c2. 
 
 # get residuals from OLS estimate
 residualsOLS <- residuals(lmSimulated)
@@ -126,20 +128,17 @@ model_sigma2_i <- data.frame( vZ^2, vZ)
 # Take the log of the residuals squared, and see how well these 
 VarEst <- lm(log(residualsOLS^2) ~ vZ + vZ.2 ,data = model_sigma2_i )
 
-# take exponent to scale back
-exp(VarEst$coefficients)
-exp(VarEst$coefficients)[1]
-
 # est. parameters 
-sigma2_est = VarEst$coefficients[1]
+sigma2_est = exp(VarEst$coefficients[1])
 c1_est = VarEst$coefficients[2]
 c2_est = VarEst$coefficients[3]
 
+
 # est. sigma2_i (in version where they are logged)
-sigma2_i_FWLS <- sigma2_est + ((c1_est * vZ^2) + (c2_est * vZ))
+sigma2_i_FWLS <- sigma2_est + exp((c1_est * vZ^2) + (c2_est * vZ))
 
 # FWLS - uses est. sigma2_ i in weights
-lmSimulated_FWLS <- lm(y ~ X1 + X2, data = dfSimulated_data, weights =exp(sigma2_i_FWLS))
+lmSimulated_FWLS <- lm(y ~ X1 + X2, data = dfSimulated_data, weights =sigma2_i_FWLS)
 
 # similar SE - slightly bigger for the FWLS
 summary(lmSimulated_WLS)$coefficient
@@ -213,15 +212,15 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0){
     VarEst <- lm(log(residualsOLS^2) ~ vZ + vZ.2 ,data = model_sigma2_i )
     
     # est. parameters 
-    sigma2_est = VarEst$coefficients[1]
+    sigma2_est = exp(VarEst$coefficients[1])
     c1_est = VarEst$coefficients[2]
     c2_est = VarEst$coefficients[3]
     
     # est. sigma2_i (in version where they are logged)
-    sigma2_i_FWLS <- sigma2_est + ((c1_est * vZ^2) + (c2_est * vZ))
+    sigma2_i_FWLS <- sigma2_est + exp((c1_est * vZ^2) + (c2_est * vZ))
     
     # FWLS - uses est. sigma2_ i in weights
-    lmFWLS <- lm(vY ~ mX1 + mX2, weights =exp(sigma2_i_FWLS))
+    lmFWLS <- lm(vY ~ mX1 + mX2, weights =sigma2_i_FWLS)
     SE_FWLS <- summary(lmFWLS)$coefficients[,2]
     
     print(iIndexResults)
