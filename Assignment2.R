@@ -366,13 +366,9 @@ dfFamily <- read.csv("Data/DataAS21.csv")
 lm_Famincome_size <- lm(familyincome ~ familysize,data = dfFamily)
 summary(lm_Famincome_size) 
 
-# Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -3179 in family income
-
 # Independent = family size, dependent = weeks worked
 lm_worked_size <- lm(weeksworked ~ familysize, data = dfFamily)
 summary(lm_worked_size)
-
-# Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -4 weeks worked less in the year for the mother
 
 # Independent = family size, dependent = hours per week
 lm_hours_size <- lm(hoursperweek ~ familysize,data = dfFamily)
@@ -438,6 +434,9 @@ summary(lm_worked_twinIV, diagnostics=TRUE)
 
 colnames(dfFamily)
 
+# output table for latex document
+stargazer(lm_Famincome_twinIV, lm_worked_twinIV, lm_hours_twinIV, lm_Labincome_twinIV)
+
 # re-restimate models with the age child instrument variable (explained part)
 lm_Famincome_ageChildIV <- ivreg(familyincome ~ familysize | agechild, data = dfFamily)
 summary(lm_Famincome_ageChildIV, diagnostics=TRUE)
@@ -451,6 +450,8 @@ summary(lm_worked_ageChildIV, diagnostics=TRUE)
 lm_Labincome_ageChildIV <- ivreg(laborincome ~ familysize | agechild, data = dfFamily)
 summary(lm_worked_ageChildIV, diagnostics=TRUE)
 
+# output table for latex document
+stargazer(lm_Famincome_ageChildIV, lm_worked_ageChildIV, lm_hours_ageChildIV, lm_Labincome_ageChildIV)
 
 
 ##### alternative code - shows what ivreg does 
