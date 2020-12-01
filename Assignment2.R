@@ -22,14 +22,9 @@ pacman::p_load(plm,
 # Ensure that it is reproducable 
 set.seed(1234567)
 
-
 ########
-# Question 1A
+# Parameters 
 ########
-
-# Generate two independent variables, normally distributed
-mX1 <- rnorm(100,mean = 1, sd = 2)
-mX2 <- rnorm(100,mean = 0, sd = 1)
 
 # Parameters 
 a = 0.9
@@ -43,105 +38,13 @@ c1 = 0.01
 c2 = 0.04
 sigma2 = 0.25
 
+# Alternative C1, C2
+c1_0 = 0
+c2_0 = 0
 
-########
-# Question 1B
-########
-
-
-# dataset where simulated data will be stored
-dfSimulated_data <- data.frame(y = numeric(), X1 = numeric(), X2 = numeric())
-
-vErrors <- c()
-vSigma2_i <- c()
-vZ_saved <- c()
-
-# generate 100 samples of 100, according to the model
-for(i in 1:100){
-  
-  # Generate two independent variables, normally distributed
-  mX1 <- rnorm(100,mean = 0, sd = 1)
-  mX2 <- rnorm(100,mean = 1, sd = 2)
-  
-  # Dependent variable generated 
-  y = a + (b1 * mX1) + (b2 * mX2)
-  
-  # create errors
-  # talked to walter - I think we need to use sigma2_i here, otherwise no heteroskadisticity 
-  vZ = rgamma(100, scale = a0, shape = a0)
-  sigma2_i = sigma2 * exp((c1* vZ^2)+ (c2 * vZ))
-  errors = rnorm(100,0,sd = sigma2_i)
-  
-  # Dependent variable generated 
-  y = a + (b1 * mX1) + (b2 * mX2) + errors
-  
-  vErrors <- c(vErrors, errors)
-  vSigma2_i <- c(vSigma2_i, sigma2_i)
-  vZ_saved <- c(vZ_saved, vZ)
-  
-  # save for this generated sample
-  dfSample = data.frame(y = y, X1 = mX1, X2 = mX2)
-  
-  # add to overall dataset
-  dfSimulated_data = rbind(dfSimulated_data, dfSample)
-  
-}
-
-#
-plot(dfSimulated_data$X1,vErrors, main = "X1 and the errors", ylim = c(-10,10), xlab = "X1")
-plot(dfSimulated_data$X2, vErrors, main = "X2 and the errors", ylim = c(-10,10), xlab = "X2")
-
-# test the standard OLS on the simualted data
-lmSimulated <- lm(y ~ X1 + X2, data = dfSimulated_data)
-
-# compute SE with constant var
-coeftest(lmSimulated, vcov = vcovHC(lmSimulated, type="const"))
-
-# compute white SE
-coeftest(lmSimulated, vcov = vcovHC(lmSimulated, type="HC1"))
-
-# White standard errors are slightly bigger, but probably too small of a difference to infer anything. 
-# The residuals are normal (see histogram below, and also logically) so smaller SE not caused by heteroskedasticity
-hist(lmSimulated$residuals, main = "Residuals with OLS", xlab="Residuals", breaks = 1000, xlim = c(-10,10))
-
-
-########
-# Question 1C
-########
-
-# weight for WLS
-WLS_weight <- exp((vZ_saved^2 *c1 )+ (vZ_saved * c2))
-
-# step 3: apply these weights in WLS
-lmSimulated_WLS <- lm(y ~ X1+ X2, data = dfSimulated_data, weights=1/vSigma2_i)
-
-## For the FWLS, we use the residuals of the OLS to estimate s2, c1, and c2. 
-
-# get residuals from OLS estimate
-residualsOLS <- residuals(lmSimulated)
-
-# model the variables in a dataframe( intercept = sigma2)
-model_sigma2_i <- data.frame( vZ_saved^2, vZ_saved)
-colnames(model_sigma2_i) <- c("vZ.2", "vZ")
-
-# Take the log of the residuals squared, and see how well these 
-VarEst <- lm(log(residualsOLS^2) ~ vZ.2 + vZ ,data = model_sigma2_i )
-c1_est <- VarEst$coefficients[2]
-c2_est <- VarEst$coefficients[3]
-
-FWLS_weight <- exp((vZ_saved^2*c1_est) + (vZ_saved * c2_est))
-
-# FWLS - uses est. sigma2_ i in weights
-lmSimulated_FWLS <- lm(y ~ X1 + X2, data = dfSimulated_data, weights =1/exp(VarEst$fitted.values))
-
-# similar SE - slightly bigger for the FWLS
-summary(lmSimulated_WLS)
-summary(lmSimulated_FWLS)
-
-########
-# Question 1D
-########
-
+####
+# Key function: simulates results given parameters
+#####
 
 # function to simulate results and compare OLS, WLS, FLS 
 simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2){
@@ -153,7 +56,10 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
                         b2 = numeric(),
                         a_se = numeric(),
                         b1_se = numeric(),
-                        b2_se = numeric())
+                        b2_se = numeric(), 
+                        a_white_se = numeric(),
+                        b1_white_se = numeric(),
+                        b2_white_se = numeric())
   iIndexResults = 1
   
   
@@ -176,6 +82,7 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
     # OLS 
     lmOLS <- lm(vY ~ mX1 + mX2)
     SE_OLS <- summary(lmOLS)$coefficients[,2]
+    White_SE_OLS <- coeftest(lmOLS, vcov = vcovHC(lmOLS, type="HC1"))[,2]
     
     # weight for WLS
     WLS_weight <- exp((vZ^2 *c1 )+ (vZ * c2))
@@ -183,6 +90,8 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
     # for WLS: repeat previous steps, take sigma2_i by which the errors are generated
     lmWLS <- lm(vY ~ mX1 + mX2, weights=1/WLS_weight)
     SE_WLS <- summary(lmWLS)$coefficients[,2]
+    White_SE_WLS <- coeftest(lmWLS, vcov = vcovHC(lmWLS, type="HC1"))[,2]
+    
     
     # for FWLS: again, repeat previous steps
     # model the variables in a dataframe( intercept = sigma2)
@@ -201,11 +110,12 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
     # FWLS - uses est. sigma2_ i in weights
     lmFWLS <- lm(vY ~ mX1 + mX2, weights = 1/FWLS_weight)
     SE_FWLS <- summary(lmFWLS)$coefficients[,2]
+    White_SE_FWLS <- coeftest(lmWLS, vcov = vcovHC(lmWLS, type="HC1"))[,2]
 
     # add to the df
-    results[iIndexResults,-1] <- c(lmOLS$coefficients, SE_OLS)
-    results[iIndexResults + 1, -1] <- c(lmWLS$coefficients, SE_WLS)
-    results[iIndexResults + 2, -1] <- c(lmFWLS$coefficients, SE_FWLS)
+    results[iIndexResults,-1] <- c(lmOLS$coefficients, SE_OLS, White_SE_OLS)
+    results[iIndexResults + 1, -1] <- c(lmWLS$coefficients, SE_WLS, White_SE_WLS)
+    results[iIndexResults + 2, -1] <- c(lmFWLS$coefficients, SE_FWLS, White_SE_FWLS)
     
     results$Estimator[iIndexResults] <- "OLS"
     results$Estimator[iIndexResults + 1] <- "WLS"
@@ -221,29 +131,53 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
 }
 
 ###
-# Question 1D
-#
+# Results per question
 ###
 
 # 100 simulations of a sample of 100
-nSample = 10000
+nSample = 100
 nSimulations = 100
-
-# simulate results
 dfResultSim <- simulationResults(nSimulations, nSample, a, b1,b2,c1,c2,a0,b0, sigma2)
-
-# results: FWLS and OLS consistent, WLS not because of the gamma distribution is random each time (but only slight divergencese)
 resultsMelted <- melt(dfResultSim, id.vars = "Estimator")  
 
 # gather results for SE
 resultsSE <- resultsMelted %>% filter(variable %in% c("a_se", "b1_se", "b2_se"))
 
-# summarize for mean in plots
+# gather results for coefficients
+resultsParam <- resultsMelted %>% filter(variable %in% c("a", "b1", "b2"))
+
+# summarize results for SE 
 resultsSE_summarized <- resultsSE %>%
   group_by(Estimator, variable) %>%
   summarise(avg = mean(value))
-resultsSE_summarized
+xtable(resultsSE_summarized %>% arrange(variable))
 
+# Summarize results for Param
+resultsParam_summarized <- resultsParam %>%
+  group_by(Estimator, variable) %>%
+  summarise(avg = mean(value), sd = sd(value))
+xtable(resultsParam_summarized %>% arrange(variable))
+
+# 1B: Compare white standard errors and constant variance standard errors in OLS
+resultsCompareSE <- resultsMelted %>% filter(variable %in% c("a_white_se", "b1_white_se", "b2_white_se", "a_se", "b1_se", "b2_se"), Estimator %in% "OLS")
+resultsCompareSE
+
+# summarise in table
+resultsCompareSE_summarized <- resultsCompareSE %>%
+  group_by(Estimator, variable) %>%
+  summarise(avg = mean(value))
+resultsCompareSE_summarized
+xtable(resultsCompareSE_summarized %>% arrange(variable))
+
+
+# 1C:  Comparison of WLS and FWLS
+Param_WLS_FWLS <- resultsParam_summarized %>% filter(Estimator %in% c("WLS", "FWLS"))
+SE_WLS_FWLS <- resultsSE_summarized %>% filter(Estimator %in% c("WLS", "FWLS"))
+colnames(SE_WLS_FWLS)[3] <- "avg_SE"
+WLS_FWLS_CompareTable <- cbind(Param_WLS_FWLS, SE_WLS_FWLS[,ncol(SE_WLS_FWLS)])
+xtable(WLS_FWLS_CompareTable)
+
+# 1D: Create plots for SE and parameter comparison
 # create lots to compare the standard errors
 ggplot(resultsSE, aes(x = value, fill = Estimator))+
   geom_histogram(alpha = 0.5, bins = 10, position="identity")+
@@ -252,15 +186,6 @@ ggplot(resultsSE, aes(x = value, fill = Estimator))+
   scale_x_continuous(breaks =  pretty_breaks())+
   theme_bw()+
   labs(y = "Count", x = "Value")
-
-# gather results for coefficients
-resultsParam <- resultsMelted %>% filter(variable %in% c("a", "b1", "b2"))
-
-# check in dataframe
-resultsParam_summarized <- resultsParam %>%
-  group_by(Estimator, variable) %>%
-  summarise(avg = mean(value), sd = sd(value))
-resultsParam_summarized
 
 # create lots to compare the coefficients
 ggplot(resultsParam, aes(x = value, fill = Estimator))+
@@ -271,15 +196,10 @@ ggplot(resultsParam, aes(x = value, fill = Estimator))+
   theme_bw()+
   labs(y = "Count", x = "Value")
 
-
 ###
 # Question 1E
-#
+# Repeat above analysis under different parameters
 ###
-
-### under alternative parameters
-c1_0 = 0
-c2_0 = 0
 
 dfResultSim_0 <- simulationResults(nSimulations, nSample, a, b1,b2,c1_0,c2_0,a0,b0, sigma2)
 resultsMelted_0 <-  melt(dfResultSim_0, id.vars = "Estimator")
@@ -287,11 +207,11 @@ resultsMelted_0 <-  melt(dfResultSim_0, id.vars = "Estimator")
 # gather results for SE
 resultsSE_0 <- resultsMelted_0 %>% filter(variable %in% c("a_se", "b1_se", "b2_se"))
 
-# summarize for mean in plots
+# summarize SE results 
 resultsSE_summarized_0 <- resultsSE_0 %>%
   group_by(Estimator, variable) %>%
   summarise(avg = mean(value))
-resultsSE_summarized_0
+xtable(resultsSE_summarized_0 %>% arrange(variable))
 
 # create lots to compare the standard errors
 ggplot(resultsSE_0, aes(x = value, fill = Estimator))+
@@ -302,14 +222,14 @@ ggplot(resultsSE_0, aes(x = value, fill = Estimator))+
   theme_bw()+
   labs(y = "Count", x = "Value")
 
-# gather results for coefficients
+# gather results for parameters
 resultsParam_0 <- resultsMelted_0 %>% filter(variable %in% c("a", "b1", "b2"))
 
-# check in dataframe
+# summarize Param results 
 resultsParam_summarized_0 <- resultsParam_0 %>%
   group_by(Estimator, variable) %>%
   summarise(avg = mean(value), sd = sd(value))
-resultsParam_summarized_0
+xtable(resultsParam_summarized_0 %>% arrange(variable))
 
 # create lots to compare the coefficients
 ggplot(resultsParam_0, aes(x = value, fill = Estimator))+
@@ -356,7 +276,6 @@ stargazer(lm_Famincome_size, lm_worked_size, lm_hours_size, lm_Labincome_size)
 ###################
 # Question 4B, C
 ###################
-dfFamily <- read.csv("DataAS21.csv")
 
 # Correlations to check if instruments are related to the other independent variables
 # Twin variable seems only mildly (0.1) correlated with family size, age child is slightly better (0.3). Same sex and education seem both unrelated to family size(0)
@@ -372,7 +291,7 @@ residuals_Labincome_size <- residuals(lm_Labincome_size)
 
 # check correlation of residuals to any of the potential instruments
 dfResiduals <- data.frame(residuals_Famincome_size, residuals_worked_size, residuals_hours_size, residuals_Labincome_size)
-dfVar_Residuals <- cbind(dfFamily, dfResiduals)
+dfVar_Residuals <- cbind(dfFamily$samesex, dfFamily$twin, dfFamily$agechild,dfFamily$education, dfResiduals)
 mCor_var_residuals <-round(cor(dfVar_Residuals), 2)
 ggcorr(dfVar_Residuals[,-1], nbreaks=8, palette='RdGy', label=TRUE, label_size=5, label_color='white')
 # It does nto seem like either twin or age child has a problematic correlation with the residuals of any of the regressions
@@ -398,8 +317,6 @@ summary(lm_worked_twinIV, diagnostics=TRUE)
 
 lm_Labincome_twinIV <- ivreg(laborincome ~ familysize | twin, data = dfFamily)
 summary(lm_Labincome_twinIV, diagnostics=TRUE)
-
-colnames(dfFamily)
 
 # output table for latex document
 stargazer(lm_Famincome_twinIV, lm_worked_twinIV, lm_hours_twinIV, lm_Labincome_twinIV)
