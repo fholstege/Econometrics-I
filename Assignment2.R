@@ -397,7 +397,7 @@ lm_hours_twinIV <- ivreg(hoursperweek ~ familysize | twin, data = dfFamily)
 summary(lm_worked_twinIV, diagnostics=TRUE)
 
 lm_Labincome_twinIV <- ivreg(laborincome ~ familysize | twin, data = dfFamily)
-summary(lm_worked_twinIV, diagnostics=TRUE)
+summary(lm_Labincome_twinIV, diagnostics=TRUE)
 
 colnames(dfFamily)
 
@@ -405,16 +405,16 @@ colnames(dfFamily)
 stargazer(lm_Famincome_twinIV, lm_worked_twinIV, lm_hours_twinIV, lm_Labincome_twinIV)
 
 # re-restimate models with the age child instrument variable (explained part)
-lm_Famincome_ageChildIV <- ivreg(familyincome ~ familysize | agechild, data = dfFamily)
+lm_Famincome_ageChildIV <- ivreg(familyincome ~ familysize | samesex, data = dfFamily)
 summary(lm_Famincome_ageChildIV, diagnostics=TRUE)
 
-lm_worked_ageChildIV <- ivreg(weeksworked ~ familysize | agechild, data = dfFamily)
+lm_worked_ageChildIV <- ivreg(weeksworked ~ familysize | samesex, data = dfFamily)
 summary(lm_worked_ageChildIV, diagnostics=TRUE)
 
-lm_hours_ageChildIV <- ivreg(hoursperweek ~ familysize | agechild, data = dfFamily)
+lm_hours_ageChildIV <- ivreg(hoursperweek ~ familysize | samesex, data = dfFamily)
 summary(lm_worked_ageChildIV, diagnostics=TRUE)
 
-lm_Labincome_ageChildIV <- ivreg(laborincome ~ familysize | agechild, data = dfFamily)
+lm_Labincome_ageChildIV <- ivreg(laborincome ~ familysize | samesex, data = dfFamily)
 summary(lm_worked_ageChildIV, diagnostics=TRUE)
 
 # output table for latex document
