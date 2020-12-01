@@ -42,9 +42,18 @@ sigma2 = 0.25
 c1_0 = 0
 c2_0 = 0
 
+
+# generate x1, x2, z
+mX1 <- rnorm(100,mean = 0, sd = 1)
+mX2 <- rnorm(100,mean = 1, sd = 2)
+vZ = rgamma(100, scale = a0, shape = b0)
+
+
+
 ####
 # Key function: simulates results given parameters
 #####
+
 
 # function to simulate results and compare OLS, WLS, FLS 
 simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2){
@@ -122,12 +131,8 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
     results$Estimator[iIndexResults + 2] <- "FWLS"
     
     iIndexResults = iIndexResults + 3
-    
-    
   }
-  
   return(results)
-  
 }
 
 ###
