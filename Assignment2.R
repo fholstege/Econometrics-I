@@ -246,7 +246,7 @@ ggplot(resultsParam_0, aes(x = value, fill = Estimator))+
 # Question 4A
 ###################
 
-
+# load data
 dfFamily <- read.csv("Data/DataAS21.csv")
 
 # Independent = family size, dependent = family income
@@ -261,13 +261,9 @@ summary(lm_worked_size)
 lm_hours_size <- lm(hoursperweek ~ familysize,data = dfFamily)
 summary(lm_hours_size)
 
-# Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -2 hours worked less per week
-
 # Independent = family size, dependent = labor income of the mother
 lm_Labincome_size <- lm( laborincome ~ familysize,data = dfFamily)
 summary(lm_Labincome_size)
-
-# Statistically significant at 5% - one unit of change in family size (e.g. one more or less family member) leads on average to -2889 in the labor income of the mother
 
 # output table for latex document
 stargazer(lm_Famincome_size, lm_worked_size, lm_hours_size, lm_Labincome_size)
@@ -276,6 +272,7 @@ stargazer(lm_Famincome_size, lm_worked_size, lm_hours_size, lm_Labincome_size)
 ###################
 # Question 4B, C
 ###################
+dfFamily <- read.csv("DataAS21.csv")
 
 # Correlations to check if instruments are related to the other independent variables
 # Twin variable seems only mildly (0.1) correlated with family size, age child is slightly better (0.3). Same sex and education seem both unrelated to family size(0)
@@ -291,18 +288,10 @@ residuals_Labincome_size <- residuals(lm_Labincome_size)
 
 # check correlation of residuals to any of the potential instruments
 dfResiduals <- data.frame(residuals_Famincome_size, residuals_worked_size, residuals_hours_size, residuals_Labincome_size)
-dfVar_Residuals <- cbind(dfFamily$samesex, dfFamily$twin, dfFamily$agechild,dfFamily$education, dfResiduals)
+dfVar_Residuals <- cbind(dfFamily, dfResiduals)
 mCor_var_residuals <-round(cor(dfVar_Residuals), 2)
 ggcorr(dfVar_Residuals[,-1], nbreaks=8, palette='RdGy', label=TRUE, label_size=5, label_color='white')
 # It does nto seem like either twin or age child has a problematic correlation with the residuals of any of the regressions
-
-
-# two stage least squares with instruments twin and age child
-lm_twin_familySize <- lm(familysize ~ twin, data = dfFamily)
-lm_ageChild_familySize <- lm(familysize ~agechild, data = dfFamily)
-
-explained_familySize_twin <- lm_twin_familySize$fitted.values
-explained_familySize_ageChild <- lm_ageChild_familySize$fitted.values
 
 
 #re-estimate models with the twin instrument variable (explained part)
@@ -313,7 +302,7 @@ lm_worked_twinIV <- ivreg(weeksworked ~ familysize | twin, data = dfFamily)
 summary(lm_worked_twinIV, diagnostics=TRUE)
 
 lm_hours_twinIV <- ivreg(hoursperweek ~ familysize | twin, data = dfFamily)
-summary(lm_worked_twinIV, diagnostics=TRUE)
+summary(lm_hours_twinIV, diagnostics=TRUE)
 
 lm_Labincome_twinIV <- ivreg(laborincome ~ familysize | twin, data = dfFamily)
 summary(lm_Labincome_twinIV, diagnostics=TRUE)
@@ -322,35 +311,135 @@ summary(lm_Labincome_twinIV, diagnostics=TRUE)
 stargazer(lm_Famincome_twinIV, lm_worked_twinIV, lm_hours_twinIV, lm_Labincome_twinIV)
 
 # re-restimate models with the age child instrument variable (explained part)
-lm_Famincome_ageChildIV <- ivreg(familyincome ~ familysize | samesex, data = dfFamily)
-summary(lm_Famincome_ageChildIV, diagnostics=TRUE)
+lm_Famincome_samesexIV <- ivreg(familyincome ~ familysize | samesex, data = dfFamily)
+summary(lm_Famincome_samesexIV, diagnostics=TRUE)
 
-lm_worked_ageChildIV <- ivreg(weeksworked ~ familysize | samesex, data = dfFamily)
-summary(lm_worked_ageChildIV, diagnostics=TRUE)
+lm_worked_samesexIV <- ivreg(weeksworked ~ familysize | samesex, data = dfFamily)
+summary(lm_worked_samesexIV , diagnostics=TRUE)
 
-lm_hours_ageChildIV <- ivreg(hoursperweek ~ familysize | samesex, data = dfFamily)
-summary(lm_worked_ageChildIV, diagnostics=TRUE)
+lm_hours_samesexIV <- ivreg(hoursperweek ~ familysize | samesex, data = dfFamily)
+summary(lm_hours_samesexIV, diagnostics=TRUE)
 
-lm_Labincome_ageChildIV <- ivreg(laborincome ~ familysize | samesex, data = dfFamily)
-summary(lm_worked_ageChildIV, diagnostics=TRUE)
+lm_Labincome_samesexIV <- ivreg(laborincome ~ familysize | samesex, data = dfFamily)
+summary(lm_Labincome_samesexIV, diagnostics=TRUE)
 
 # output table for latex document
-stargazer(lm_Famincome_ageChildIV, lm_worked_ageChildIV, lm_hours_ageChildIV, lm_Labincome_ageChildIV)
+stargazer(lm_Famincome_samesexIV,lm_worked_samesexIV,lm_hours_samesexIV,lm_Labincome_samesexIV)
 
 
-##### alternative code - shows what ivreg does 
-#lm_Famincome_twin <- lm(familyincome ~ explained_familySize_twin, data = dfFamily)
-#summary(lm_Famincome_twin, diagnostics=TRUE)
+###################
+# Question 4E - Hausman test for each model
+###################
+######################################
+# Z: twin, Y: familyincome
+######################################
+# step (1) regress y on x
+u1 <- resid(lm_Famincome_size)
 
+# step (2) regress endogenous x on z
+Res2 <- lm(familysize ~ twin, dfFamily)
+u2 <- resid(Res2)
 
-#lm_worked_twin <- lm(weeksworked ~ explained_familySize_twin, data = dfFamily)
-#summary(lm_worked_twin, diagnostics=TRUE)
-# 
-# lm_hours_twin <- lm(hoursperweek ~ explained_familySize_twin, data = dfFamily)
-# summary(lm_hours_twin, diagnostics=TRUE)
-# 
-# lm_Labincome_twin <- lm(laborincome ~ explained_familySize_twin, data = dfFamily)
-# summary(lm_Labincome_twin, diagnostics=TRUE)
+# step (3) regress residual of step 1 on x and residual of step 2
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
 
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
 
+# test statistic
+H <- n3*Rsq
 
+# pvalue
+1-pchisq(H,1) 
+
+######################################
+# Z: twin, Y: weeks worked
+######################################
+u1 <- resid(lm_worked_size)
+Res2 <- lm(familysize ~ twin, dfFamily)
+u2 <- resid(Res2)
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
+H <- n3*Rsq
+1-pchisq(H,1) 
+
+######################################
+# Z: twin, Y: hours worked
+######################################
+u1 <- resid(lm_hours_size)
+Res2 <- lm(familysize ~ twin, dfFamily)
+u2 <- resid(Res2)
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
+H <- n3*Rsq
+1-pchisq(H,1) 
+
+######################################
+# Z: twin, Y: mothers income
+######################################
+u1 <- resid(lm_Labincome_size)
+Res2 <- lm(familysize ~ twin, dfFamily)
+u2 <- resid(Res2)
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
+H <- n3*Rsq
+1-pchisq(H,1) 
+
+######################################
+# Z: samesex, Y: familyincome
+######################################
+u1 <- resid(lm_Famincome_size)
+Res2 <- lm(familysize ~ samesex, dfFamily)
+u2 <- resid(Res2)
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
+H <- n3*Rsq
+1-pchisq(H,1) 
+
+######################################
+# Z: samesex, Y: weeks worked
+######################################
+u1 <- resid(lm_worked_size)
+Res2 <- lm(familysize ~ samesex, dfFamily)
+u2 <- resid(Res2)
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
+H <- n3*Rsq
+1-pchisq(H,1) 
+
+######################################
+# Z: samesex, Y: hours worked
+######################################
+u1 <- resid(lm_hours_size)
+Res2 <- lm(familysize ~ samesex, dfFamily)
+u2 <- resid(Res2)
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
+H <- n3*Rsq
+1-pchisq(H,1) 
+
+######################################
+# Z: samesex, Y: mothers income
+######################################
+u1 <- resid(lm_Labincome_size)
+Res2 <- lm(familysize ~ samesex, dfFamily)
+u2 <- resid(Res2)
+Res3 <- lm(u1 ~ familysize + u2, dfFamily)
+summary(Res3)
+n3 <- nobs(Res3)
+Rsq <- summary(Res3)$r.squared
+H <- n3*Rsq
+1-pchisq(H,1) 
