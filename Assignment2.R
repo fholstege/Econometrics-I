@@ -36,27 +36,25 @@ a = 0.9
 b1 = 0.5
 b2 = -0.2
 
-# Parameters for sigma2 
+# Parameters for sigma2_i
 a0 = 2
 b0 = 2
 c1 = 0.01
 c2 = 0.04
 sigma2 = 0.25
 
-vZ = rgamma(100, scale = a0, shape = a0)
 
 ########
 # Question 1B
 ########
 
-# work with true parameters to get errors
-sigma2_i = 0.25
-
-# generate 100 errors
-errors = rnorm(100,0,sd = sigma2)
 
 # dataset where simulated data will be stored
 dfSimulated_data <- data.frame(y = numeric(), X1 = numeric(), X2 = numeric())
+
+vErrors <- c()
+vSigma2_i <- c()
+vZ_saved <- c()
 
 # generate 100 samples of 100, according to the model
 for(i in 1:100){
@@ -70,13 +68,17 @@ for(i in 1:100){
   
   # create errors
   # talked to walter - I think we need to use sigma2_i here, otherwise no heteroskadisticity 
-  #sigma2 = 0.25
+  vZ = rgamma(100, scale = a0, shape = a0)
   sigma2_i = sigma2 * exp((c1* vZ^2)+ (c2 * vZ))
   errors = rnorm(100,0,sd = sigma2_i)
   
-  # add errors to y
-  y <- y + errors
-
+  # Dependent variable generated 
+  y = a + (b1 * mX1) + (b2 * mX2) + errors
+  
+  vErrors <- c(vErrors, errors)
+  vSigma2_i <- c(vSigma2_i, sigma2_i)
+  vZ_saved <- c(vZ_saved, vZ)
+  
   # save for this generated sample
   dfSample = data.frame(y = y, X1 = mX1, X2 = mX2)
   
@@ -85,7 +87,9 @@ for(i in 1:100){
   
 }
 
-
+#
+plot(dfSimulated_data$X1,vErrors, main = "X1 and the errors", ylim = c(-10,10), xlab = "X1")
+plot(dfSimulated_data$X2, vErrors, main = "X2 and the errors", ylim = c(-10,10), xlab = "X2")
 
 # test the standard OLS on the simualted data
 lmSimulated <- lm(y ~ X1 + X2, data = dfSimulated_data)
@@ -98,23 +102,18 @@ coeftest(lmSimulated, vcov = vcovHC(lmSimulated, type="HC1"))
 
 # White standard errors are slightly bigger, but probably too small of a difference to infer anything. 
 # The residuals are normal (see histogram below, and also logically) so smaller SE not caused by heteroskedasticity
-hist(lmSimulated$residuals, main = "Residuals with OLS", xlab="Residuals")
+hist(lmSimulated$residuals, main = "Residuals with OLS", xlab="Residuals", breaks = 1000, xlim = c(-10,10))
 
 
 ########
 # Question 1C
 ########
 
-## For the WLS, we use the est. for sigma2_i, given s2 = 0.25, c1 = 0.01, c2 = 0.04
-# step 1: define z variable with gamma distribution
-vZ = rgamma(10000, scale = a0, shape = b0)
-
-# step 2: use definition given to get est. sigma2_i
-sigma2_i_WLS = sigma2 * exp((c1 * vZ^2) +(c2 * vZ))
+# weight for WLS
+WLS_weight <- exp((vZ_saved^2 *c1 )+ (vZ_saved * c2))
 
 # step 3: apply these weights in WLS
-lmSimulated_WLS <- lm(y ~ X1+ X2, data = dfSimulated_data, weights=sigma2_i_WLS)
-
+lmSimulated_WLS <- lm(y ~ X1+ X2, data = dfSimulated_data, weights=1/vSigma2_i)
 
 ## For the FWLS, we use the residuals of the OLS to estimate s2, c1, and c2. 
 
@@ -122,39 +121,30 @@ lmSimulated_WLS <- lm(y ~ X1+ X2, data = dfSimulated_data, weights=sigma2_i_WLS)
 residualsOLS <- residuals(lmSimulated)
 
 # model the variables in a dataframe( intercept = sigma2)
-model_sigma2_i <- data.frame( vZ^2, vZ)
-
+model_sigma2_i <- data.frame( vZ_saved^2, vZ_saved)
+colnames(model_sigma2_i) <- c("vZ.2", "vZ")
 
 # Take the log of the residuals squared, and see how well these 
-VarEst <- lm(log(residualsOLS^2) ~ vZ + vZ.2 ,data = model_sigma2_i )
+VarEst <- lm(log(residualsOLS^2) ~ vZ.2 + vZ ,data = model_sigma2_i )
+c1_est <- VarEst$coefficients[2]
+c2_est <- VarEst$coefficients[3]
 
-# est. parameters 
-sigma2_est = exp(VarEst$coefficients[1])
-c1_est = VarEst$coefficients[2]
-c2_est = VarEst$coefficients[3]
-
-
-# est. sigma2_i (in version where they are logged)
-sigma2_i_FWLS <- sigma2_est + exp((c1_est * vZ^2) + (c2_est * vZ))
+FWLS_weight <- exp((vZ_saved^2*c1_est) + (vZ_saved * c2_est))
 
 # FWLS - uses est. sigma2_ i in weights
-lmSimulated_FWLS <- lm(y ~ X1 + X2, data = dfSimulated_data, weights =sigma2_i_FWLS)
+lmSimulated_FWLS <- lm(y ~ X1 + X2, data = dfSimulated_data, weights =1/exp(VarEst$fitted.values))
 
 # similar SE - slightly bigger for the FWLS
-summary(lmSimulated_WLS)$coefficient
-summary(lmSimulated_FWLS)$coefficient
-
-# both have normally distributed errors
-hist(lmSimulated_WLS$residuals, main = "Residuals with WLS", xlab = "Residuals")
-hist(lmSimulated_FWLS$residuals, main = "Residuals with FWLS", xlab = "Residuals")
+summary(lmSimulated_WLS)
+summary(lmSimulated_FWLS)
 
 ########
-# Question 1C
+# Question 1D
 ########
 
 
 # function to simulate results and compare OLS, WLS, FLS 
-simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0){
+simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2){
   
   # dataframe with results 
   results <- data.frame(Estimator = character(), 
@@ -174,34 +164,27 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0){
     mX1 <- rnorm(nSample,mean = 0, sd = 1)
     mX2 <- rnorm(nSample,mean = 1, sd = 2)
     
-    # Dependent variable generated 
-    vY = a + (b1 * mX1) + (b2 * mX2)
-    
     # create errors
-    sigma2 = 0.25
-    errors = rnorm(100,0,sd = sigma2)
+    vZ = rgamma(nSample, scale = a0, shape = b0)
+    sigma2_i = sigma2 * exp((c1* vZ^2)+ (c2 * vZ))
+    errors = rnorm(nSample,0,sd = sigma2_i)
     
     # add to y
-    vY <- vY + errors
+    # Dependent variable generated 
+    vY = a + (b1 * mX1) + (b2 * mX2) + errors
     
     # OLS 
     lmOLS <- lm(vY ~ mX1 + mX2)
     SE_OLS <- summary(lmOLS)$coefficients[,2]
     
-    # for WLS: repeat previous steps
+    # weight for WLS
+    WLS_weight <- exp((vZ^2 *c1 )+ (vZ * c2))
     
-    # step 1: calc vZ
-    vZ = rgamma(nSample, scale = a0, shape = b0)
-    
-    # step 2: use definition given to get est. sigma2_i
-    sigma2_i_WLS = sigma2 * exp((c1 * vZ^2) +(c2 * vZ))
-    
-    # step 3: apply sigma2_i as weights
-    lmWLS <- lm(vY ~ mX1 + mX2, weights=sigma2_i_WLS)
+    # for WLS: repeat previous steps, take sigma2_i by which the errors are generated
+    lmWLS <- lm(vY ~ mX1 + mX2, weights=1/WLS_weight)
     SE_WLS <- summary(lmWLS)$coefficients[,2]
     
     # for FWLS: again, repeat previous steps
-    
     # model the variables in a dataframe( intercept = sigma2)
     model_sigma2_i <- data.frame( vZ^2, vZ)
     
@@ -209,31 +192,16 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0){
     residualsOLS <- residuals(lmOLS)
     
     # Take the log of the residuals squared, and see how well these 
-    VarEst <- lm(log(residualsOLS^2) ~ vZ + vZ.2 ,data = model_sigma2_i )
+    VarEst <- lm(log(residualsOLS^2) ~ vZ.2 + vZ ,data = model_sigma2_i )
+    c1_est <- VarEst$coefficients[2]
+    c2_est <- VarEst$coefficients[3]
     
-    # est. parameters 
-    sigma2_est = exp(VarEst$coefficients[1])
-    c1_est = VarEst$coefficients[2]
-    c2_est = VarEst$coefficients[3]
-    
-    # est. sigma2_i (in version where they are logged)
-    sigma2_i_FWLS <- sigma2_est + exp((c1_est * vZ^2) + (c2_est * vZ))
+    FWLS_weight <- exp((vZ^2*c1_est) + (vZ * c2_est))
     
     # FWLS - uses est. sigma2_ i in weights
-    lmFWLS <- lm(vY ~ mX1 + mX2, weights =sigma2_i_FWLS)
+    lmFWLS <- lm(vY ~ mX1 + mX2, weights = 1/FWLS_weight)
     SE_FWLS <- summary(lmFWLS)$coefficients[,2]
-    
-    print(iIndexResults)
-    print(SE_FWLS)
-    
-    if(length(SE_FWLS <3)){
-      
-      nMissing <- 3 - length(SE_FWLS)
-      SE_FWLS <- c(SE_FWLS, rep(NA, nMissing))
-      
-    }
-    
-    
+
     # add to the df
     results[iIndexResults,-1] <- c(lmOLS$coefficients, SE_OLS)
     results[iIndexResults + 1, -1] <- c(lmWLS$coefficients, SE_WLS)
@@ -244,8 +212,6 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0){
     results$Estimator[iIndexResults + 2] <- "FWLS"
     
     iIndexResults = iIndexResults + 3
-    
-    
     
     
   }
@@ -260,12 +226,11 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0){
 ###
 
 # 100 simulations of a sample of 100
-nSample = 100
+nSample = 10000
 nSimulations = 100
 
-
 # simulate results
-dfResultSim <- simulationResults(nSimulations, nSample, a, b1,b2,c1,c2,a0,b0)
+dfResultSim <- simulationResults(nSimulations, nSample, a, b1,b2,c1,c2,a0,b0, sigma2)
 
 # results: FWLS and OLS consistent, WLS not because of the gamma distribution is random each time (but only slight divergencese)
 resultsMelted <- melt(dfResultSim, id.vars = "Estimator")  
@@ -277,6 +242,7 @@ resultsSE <- resultsMelted %>% filter(variable %in% c("a_se", "b1_se", "b2_se"))
 resultsSE_summarized <- resultsSE %>%
   group_by(Estimator, variable) %>%
   summarise(avg = mean(value))
+resultsSE_summarized
 
 # create lots to compare the standard errors
 ggplot(resultsSE, aes(x = value, fill = Estimator))+
@@ -315,7 +281,7 @@ ggplot(resultsParam, aes(x = value, fill = Estimator))+
 c1_0 = 0
 c2_0 = 0
 
-dfResultSim_0 <- simulationResults(nSimulations, nSample, a, b1,b2,c1_0,c2_0,a0,b0)
+dfResultSim_0 <- simulationResults(nSimulations, nSample, a, b1,b2,c1_0,c2_0,a0,b0, sigma2)
 resultsMelted_0 <-  melt(dfResultSim_0, id.vars = "Estimator")
 
 # gather results for SE
@@ -325,6 +291,7 @@ resultsSE_0 <- resultsMelted_0 %>% filter(variable %in% c("a_se", "b1_se", "b2_s
 resultsSE_summarized_0 <- resultsSE_0 %>%
   group_by(Estimator, variable) %>%
   summarise(avg = mean(value))
+resultsSE_summarized_0
 
 # create lots to compare the standard errors
 ggplot(resultsSE_0, aes(x = value, fill = Estimator))+
@@ -342,7 +309,7 @@ resultsParam_0 <- resultsMelted_0 %>% filter(variable %in% c("a", "b1", "b2"))
 resultsParam_summarized_0 <- resultsParam_0 %>%
   group_by(Estimator, variable) %>%
   summarise(avg = mean(value), sd = sd(value))
-resultsParam_summarized
+resultsParam_summarized_0
 
 # create lots to compare the coefficients
 ggplot(resultsParam_0, aes(x = value, fill = Estimator))+
