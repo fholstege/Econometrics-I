@@ -77,6 +77,8 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
   
   iIndexParam = 1
   
+  vSigma2Est <- c()
+  
   # create n simulations
   for(i in 1:nSimulations){
     
@@ -129,6 +131,10 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
     lmFWLS <- lm(vY ~ mX1 + mX2, weights = 1/FWLS_weight)
     SE_FWLS <- summary(lmFWLS)$coefficients[,2]
     White_SE_FWLS <- coeftest(lmWLS, vcov = vcovHC(lmWLS, type="HC1"))[,2]
+    
+    # sigma2 est.
+    sigma2_est <- exp(summary(VarEst)$coefficients[1])
+    vSigma2Est <- c(vSigma2Est, sigma2_est)
 
     # add to the df
     results[iIndexResults,-1] <- c(lmOLS$coefficients, SE_OLS, White_SE_OLS)
@@ -141,12 +147,14 @@ simulationResults<- function(nSimulations, nSample, a, b1,b2,c1,c2, a0,b0,sigma2
     
     iIndexResults = iIndexResults + 3
   }
-  return(list(dfResults = results, dfParam = param))
+  return(list(dfResults = results, dfParam = param, Sigma2_est = vSigma2Est))
 }
 
 ###
 # Results per question
 ###
+
+
 
 # Ensure that it is reproducable 
 set.seed(1234567)
@@ -199,6 +207,9 @@ SE_WLS_FWLS <- resultsSE_summarized %>% filter(Estimator %in% c("WLS", "FWLS"))
 colnames(SE_WLS_FWLS)[3] <- "avg_SE"
 WLS_FWLS_CompareTable <- cbind(Param_WLS_FWLS, SE_WLS_FWLS[,ncol(SE_WLS_FWLS)])
 xtable(WLS_FWLS_CompareTable)
+
+# get average sigma2 est. 
+mean(dfResultSim$Sigma2_est)
 
 # 1D: Create plots for SE and parameter comparison
 # create lots to compare the standard errors
